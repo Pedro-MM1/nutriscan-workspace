@@ -1,59 +1,115 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
+import { SplashScreen, Stack } from 'expo-router';
 import { useEffect } from 'react';
-import 'react-native-reanimated';
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { Colors } from '../constants/Colors';
+import { AuthProvider } from '../services/auth';
 
 export {
   // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
+  ErrorBoundary
 } from 'expo-router';
 
 export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
   initialRouteName: '(tabs)',
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
+// Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
+  // ✅ Forçar tema LIGHT para mockups
+  const themeColors = Colors.light;
+
+  const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
-    if (error) throw error;
-  }, [error]);
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
+    if (loaded) SplashScreen.hideAsync();
   }, [loaded]);
 
-  if (!loaded) {
-    return null;
-  }
+  if (!loaded) return null;
 
-  return <RootLayoutNav />;
-}
-
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  // ✅ Theme do navigation também forçado em LIGHT
+  const navTheme = {
+    ...DefaultTheme,
+    colors: {
+      ...DefaultTheme.colors,
+      background: themeColors.background,
+      card: themeColors.card,
+      text: themeColors.text,
+      border: themeColors.border,
+      primary: themeColors.primary,
+    },
+  };
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
+    <ThemeProvider value={navTheme}>
+      <AuthProvider>
+        <Stack
+          screenOptions={{
+            // ✅ Fundo branco em todas as telas
+            contentStyle: { backgroundColor: themeColors.background },
+
+            // ✅ Header claro
+            headerStyle: { backgroundColor: themeColors.background },
+            headerTintColor: themeColors.text,
+            headerTitleStyle: { color: themeColors.text },
+            headerBackTitle: 'Voltar',
+          }}
+        >
+          {/* TABS (home principal) */}
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
+          {/* AUTH */}
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+
+          {/* ONBOARDING */}
+          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+
+          {/* MODAL DE ASSINATURA */}
+          <Stack.Screen
+            name="subscription"
+            options={{ presentation: 'modal', headerShown: false }}
+          />
+
+          {/* FERRAMENTAS */}
+          <Stack.Screen
+            name="tools/diet-generator"
+            options={{ title: 'Gerador de Dieta' }}
+          />
+          <Stack.Screen
+            name="tools/workout-generator"
+            options={{ title: 'Gerador de Treino' }}
+          />
+          <Stack.Screen name="tools/notes" options={{ title: 'Anotações' }} />
+
+          {/* CONFIGURAÇÕES */}
+          <Stack.Screen
+            name="settings/notifications"
+            options={{ title: 'Notificações' }}
+          />
+          <Stack.Screen
+            name="settings/privacy"
+            options={{ title: 'Privacidade' }}
+          />
+          <Stack.Screen
+            name="settings/payments"
+            options={{ title: 'Pagamento & assinatura' }}
+          />
+          <Stack.Screen
+            name="settings/support"
+            options={{ title: 'Ajuda & suporte' }}
+          />
+
+          {/* MODAL PADRÃO */}
+          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        </Stack>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
