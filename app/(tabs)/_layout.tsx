@@ -1,6 +1,44 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
+import { View } from "react-native";
+
+function TabIcon({
+  name,
+  color,
+  focused,
+}: {
+  name: React.ComponentProps<typeof Ionicons>["name"];
+  color: string;
+  focused: boolean;
+}) {
+  return (
+    <View
+      style={{
+        alignItems: "center",
+        justifyContent: "center",
+        width: 44,
+        height: 32,
+        borderRadius: 10,
+        backgroundColor: focused ? "#EFF6FF" : "transparent",
+      }}
+    >
+      <Ionicons name={name} size={focused ? 24 : 22} color={color} />
+      {focused && (
+        <View
+          style={{
+            position: "absolute",
+            bottom: -6,
+            width: 5,
+            height: 5,
+            borderRadius: 999,
+            backgroundColor: "#2563EB",
+          }}
+        />
+      )}
+    </View>
+  );
+}
 
 export default function TabsLayout() {
   return (
@@ -13,9 +51,9 @@ export default function TabsLayout() {
           backgroundColor: "#FFFFFF",
           borderTopColor: "#E2E8F0",
           borderTopWidth: 1,
-          height: 74,
-          paddingTop: 8,
-          paddingBottom: 10,
+          height: 78,
+          paddingTop: 10,
+          paddingBottom: 12,
         },
         tabBarLabelStyle: {
           fontSize: 11,
@@ -27,8 +65,8 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Início",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="home" color={color} focused={focused} />
           ),
         }}
       />
@@ -37,8 +75,8 @@ export default function TabsLayout() {
         name="scanner"
         options={{
           title: "Scanner",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="scan" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="scan" color={color} focused={focused} />
           ),
         }}
       />
@@ -47,8 +85,8 @@ export default function TabsLayout() {
         name="progress"
         options={{
           title: "Progresso",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="bar-chart" color={color} focused={focused} />
           ),
         }}
       />
@@ -57,8 +95,8 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: "Perfil",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="person" color={color} focused={focused} />
           ),
         }}
       />
