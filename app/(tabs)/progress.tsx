@@ -1,32 +1,130 @@
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { Colors } from "../../constants/Colors";
-
-const WEIGHT_DATA = [
-  { date: "24/03", kg: 82.5 },
-  { date: "25/03", kg: 82.1 },
-  { date: "26/03", kg: 81.8 },
-  { date: "27/03", kg: 82.0 },
-  { date: "28/03", kg: 81.5 },
-  { date: "29/03", kg: 81.2 },
-  { date: "30/03", kg: 81.0 },
-];
+import { auth } from "../../lib/firebase";
+import { useWeightLog, WeightEntry } from "../../lib/hooks/useWeightLog";
+import { useUserDoc } from "../../lib/hooks/useUserDoc";
 
 const PERIODS = ["7 dias", "30 dias", "3 meses"];
 
+const PERIOD_DAYS: Record<string, number> = {
+  "7 dias": 7,
+  "30 dias": 30,
+  "3 meses": 90,
+};
+
+function dateLabel(entry: WeightEntry): string {
+  const [, month, day] = entry.dateKey.split("-");
+  return `${day}/${month}`;
+}
+
+function fullDate(entry: WeightEntry): string {
+  const [year, month, day] = entry.dateKey.split("-");
+  return `${day}/${month}/${year.slice(2)}`;
+}
+
 export default function ProgressScreen() {
-  const router = useRouter();
   const [period, setPeriod] = useState("7 dias");
+  const [authUid, setAuthUid] = useState<string | null>(null);
 
-  const current = WEIGHT_DATA[WEIGHT_DATA.length - 1].kg;
-  const start = WEIGHT_DATA[0].kg;
-  const diff = (current - start).toFixed(1);
-  const diffPositive = parseFloat(diff) > 0;
+  // Android weight input modal state
+  const [androidModal, setAndroidModal] = useState(false);
+  const [androidInput, setAndroidInput] = useState("");
 
-  const maxKg = Math.max(...WEIGHT_DATA.map((d) => d.kg));
-  const minKg = Math.min(...WEIGHT_DATA.map((d) => d.kg));
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (!u) {
+        try {
+          const cred = await signInAnonymously(auth);
+          setAuthUid(cred.user.uid);
+        } catch {
+          setAuthUid(null);
+        }
+        return;
+      }
+      setAuthUid(u.uid);
+    });
+    return () => unsub();
+  }, []);
+
+  const { user, data } = useUserDoc();
+  const uid = user?.uid ?? authUid ?? null;
+
+  const { entries, loading, addEntry } = useWeightLog(uid);
+
+  const weightGoal = data?.goals?.weightGoalKg ?? 78;
+
+  // Filtra pelo período selecionado (entries chegam em desc, reverse p/ asc)
+  const filteredAsc = useMemo(() => {
+    const days = PERIOD_DAYS[period];
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    cutoff.setHours(0, 0, 0, 0);
+
+    return [...entries]
+      .filter((e) => {
+        const d = typeof e.loggedAt?.toDate === "function"
+          ? e.loggedAt.toDate()
+          : new Date(e.dateKey);
+        return d >= cutoff;
+      })
+      .reverse(); // asc para o gráfico
+  }, [entries, period]);
+
+  // Até 10 pontos no gráfico
+  const chartData = useMemo(
+    () => filteredAsc.slice(-10),
+    [filteredAsc]
+  );
+
+  const current = entries[0]?.kg ?? null;
+  const oldest = filteredAsc[0]?.kg ?? current;
+  const diff = current != null && oldest != null
+    ? (current - oldest).toFixed(1)
+    : null;
+  const diffPositive = diff != null && parseFloat(diff) > 0;
+
+  const maxKg = chartData.length ? Math.max(...chartData.map((d) => d.kg)) : 0;
+  const minKg = chartData.length ? Math.min(...chartData.map((d) => d.kg)) : 0;
   const range = maxKg - minKg || 1;
+
+  const saveWeight = async (raw: string) => {
+    const kg = parseFloat(raw.replace(",", "."));
+    if (isNaN(kg) || kg <= 0 || kg > 500) {
+      Alert.alert("Valor inválido", "Digite um peso válido em kg (ex: 81.5).");
+      return;
+    }
+    await addEntry(kg);
+  };
+
+  const handleAddWeight = () => {
+    if (Platform.OS === "ios") {
+      Alert.prompt(
+        "Registrar peso",
+        "Digite seu peso em kg (ex: 81.5)",
+        async (value) => { if (value) await saveWeight(value); },
+        "plain-text",
+        "",
+        "decimal-pad"
+      );
+    } else {
+      setAndroidInput("");
+      setAndroidModal(true);
+    }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -40,17 +138,19 @@ export default function ProgressScreen() {
       <View style={styles.summaryRow}>
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>Peso atual</Text>
-          <Text style={styles.summaryValue}>{current} kg</Text>
+          <Text style={styles.summaryValue}>
+            {current != null ? `${current} kg` : "—"}
+          </Text>
         </View>
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>Variação</Text>
-          <Text style={[styles.summaryValue, { color: diffPositive ? "#EF4444" : "#22C55E" }]}>
-            {diffPositive ? "+" : ""}{diff} kg
+          <Text style={[styles.summaryValue, diff != null && { color: diffPositive ? "#EF4444" : "#22C55E" }]}>
+            {diff != null ? `${diffPositive ? "+" : ""}${diff} kg` : "—"}
           </Text>
         </View>
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>Meta</Text>
-          <Text style={styles.summaryValue}>78 kg</Text>
+          <Text style={styles.summaryValue}>{weightGoal} kg</Text>
         </View>
       </View>
 
@@ -67,26 +167,41 @@ export default function ProgressScreen() {
         ))}
       </View>
 
-      {/* GRÁFICO DE BARRAS SIMPLES */}
+      {/* GRÁFICO */}
       <View style={styles.chartCard}>
         <Text style={styles.chartTitle}>Peso ({period})</Text>
-        <View style={styles.chartArea}>
-          {WEIGHT_DATA.map((d, i) => {
-            const heightPct = ((d.kg - minKg) / range) * 60 + 20;
-            return (
-              <View key={i} style={styles.barWrap}>
-                <Text style={styles.barValue}>{d.kg}</Text>
-                <View style={[styles.bar, { height: heightPct }]} />
-                <Text style={styles.barDate}>{d.date.split("/")[0]}</Text>
-              </View>
-            );
-          })}
-        </View>
+
+        {loading && <ActivityIndicator color="#2563EB" style={{ marginVertical: 24 }} />}
+
+        {!loading && chartData.length === 0 && (
+          <View style={styles.chartEmpty}>
+            <Text style={styles.chartEmptyText}>Nenhum registro para este período</Text>
+          </View>
+        )}
+
+        {!loading && chartData.length > 0 && (
+          <View style={styles.chartArea}>
+            {chartData.map((d, i) => {
+              const heightPct = ((d.kg - minKg) / range) * 60 + 20;
+              return (
+                <View key={d.id ?? i} style={styles.barWrap}>
+                  <Text style={styles.barValue}>{d.kg}</Text>
+                  <View style={[styles.bar, { height: heightPct }]} />
+                  <Text style={styles.barDate}>{dateLabel(d).split("/")[0]}</Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
       </View>
 
       {/* REGISTRO DE PESO */}
       <Text style={styles.sectionTitle}>Registrar peso</Text>
-      <TouchableOpacity style={styles.addWeightBtn}>
+      <TouchableOpacity
+        style={[styles.addWeightBtn, !uid && styles.addWeightBtnDisabled]}
+        onPress={handleAddWeight}
+        disabled={!uid}
+      >
         <Text style={styles.addWeightIcon}>⚖️</Text>
         <View>
           <Text style={styles.addWeightTitle}>Adicionar medição</Text>
@@ -97,11 +212,22 @@ export default function ProgressScreen() {
 
       {/* HISTÓRICO */}
       <Text style={styles.sectionTitle}>Histórico recente</Text>
-      {[...WEIGHT_DATA].reverse().map((d, i) => (
-        <View key={i} style={styles.historyItem}>
+
+      {loading && <ActivityIndicator color="#2563EB" style={{ marginBottom: 16 }} />}
+
+      {!loading && entries.length === 0 && (
+        <View style={styles.historyEmpty}>
+          <Text style={styles.historyEmptyText}>
+            Nenhuma medição registrada ainda.{"\n"}Adicione seu peso acima para começar.
+          </Text>
+        </View>
+      )}
+
+      {!loading && entries.map((e, i) => (
+        <View key={e.id} style={styles.historyItem}>
           <View>
-            <Text style={styles.historyDate}>{d.date}</Text>
-            <Text style={styles.historyKg}>{d.kg} kg</Text>
+            <Text style={styles.historyDate}>{fullDate(e)}</Text>
+            <Text style={styles.historyKg}>{e.kg} kg</Text>
           </View>
           {i === 0 && (
             <View style={styles.latestBadge}>
@@ -112,6 +238,45 @@ export default function ProgressScreen() {
       ))}
 
       <View style={{ height: 28 }} />
+
+      {/* MODAL ANDROID */}
+      <Modal visible={androidModal} transparent animationType="fade">
+        <KeyboardAvoidingView
+          behavior="padding"
+          style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <View style={styles.androidModal}>
+            <Text style={styles.androidModalTitle}>Registrar peso</Text>
+            <Text style={styles.androidModalSub}>Digite seu peso em kg</Text>
+            <TextInput
+              style={styles.androidModalInput}
+              value={androidInput}
+              onChangeText={setAndroidInput}
+              keyboardType="decimal-pad"
+              placeholder="Ex: 81.5"
+              placeholderTextColor="#94A3B8"
+              autoFocus
+            />
+            <View style={styles.androidModalRow}>
+              <TouchableOpacity
+                style={styles.androidModalCancel}
+                onPress={() => setAndroidModal(false)}
+              >
+                <Text style={styles.androidModalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.androidModalSave}
+                onPress={async () => {
+                  setAndroidModal(false);
+                  await saveWeight(androidInput);
+                }}
+              >
+                <Text style={styles.androidModalSaveText}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </ScrollView>
   );
 }
@@ -121,14 +286,17 @@ const styles = StyleSheet.create({
   header: { marginTop: 6, marginBottom: 20 },
   title: { fontSize: 28, fontWeight: "900", color: Colors.light.text, letterSpacing: -0.8 },
   subtitle: { color: "#64748B", fontSize: 14, marginTop: 6, fontWeight: "600" },
+
   summaryRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
   summaryCard: {
     flex: 1, backgroundColor: "#FFFFFF", borderRadius: 18, padding: 14,
     borderWidth: 1, borderColor: "#E2E8F0", alignItems: "center",
-    shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
   summaryLabel: { color: "#64748B", fontSize: 11, fontWeight: "700", marginBottom: 6 },
   summaryValue: { color: Colors.light.text, fontSize: 16, fontWeight: "900" },
+
   periodRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
   periodBtn: {
     flex: 1, paddingVertical: 8, borderRadius: 10,
@@ -137,27 +305,44 @@ const styles = StyleSheet.create({
   periodBtnActive: { backgroundColor: "#2563EB", borderColor: "#2563EB" },
   periodLabel: { fontSize: 12, fontWeight: "800", color: "#64748B" },
   periodLabelActive: { color: "#FFFFFF" },
+
   chartCard: {
     backgroundColor: "#FFFFFF", borderRadius: 20, padding: 16,
     borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 16,
-    shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 3,
+    shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 }, elevation: 3,
   },
   chartTitle: { color: Colors.light.text, fontWeight: "900", fontSize: 14, marginBottom: 16 },
   chartArea: { flexDirection: "row", alignItems: "flex-end", gap: 6, height: 110 },
+  chartEmpty: { height: 80, justifyContent: "center", alignItems: "center" },
+  chartEmptyText: { color: "#94A3B8", fontSize: 13, fontWeight: "600" },
   barWrap: { flex: 1, alignItems: "center", gap: 4 },
   barValue: { fontSize: 9, color: "#64748B", fontWeight: "700" },
   bar: { width: "100%", backgroundColor: "#2563EB", borderRadius: 6 },
   barDate: { fontSize: 10, color: "#94A3B8", fontWeight: "700" },
-  sectionTitle: { color: Colors.light.text, fontSize: 17, fontWeight: "900", marginBottom: 12, marginTop: 4, letterSpacing: -0.3 },
+
+  sectionTitle: {
+    color: Colors.light.text, fontSize: 17, fontWeight: "900",
+    marginBottom: 12, marginTop: 4, letterSpacing: -0.3,
+  },
+
   addWeightBtn: {
     flexDirection: "row", alignItems: "center", gap: 12,
     backgroundColor: "#FFFFFF", borderRadius: 18, padding: 16,
     borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 16,
   },
+  addWeightBtnDisabled: { opacity: 0.5 },
   addWeightIcon: { fontSize: 22 },
   addWeightTitle: { color: Colors.light.text, fontWeight: "900", fontSize: 15 },
   addWeightSub: { color: "#64748B", fontSize: 12, fontWeight: "600", marginTop: 2 },
   chevron: { fontSize: 22, color: "#94A3B8", marginLeft: "auto" },
+
+  historyEmpty: {
+    backgroundColor: "#FFFFFF", borderRadius: 14, padding: 18,
+    borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 8, alignItems: "center",
+  },
+  historyEmptyText: { color: "#94A3B8", fontSize: 13, fontWeight: "600", textAlign: "center", lineHeight: 20 },
+
   historyItem: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     backgroundColor: "#FFFFFF", borderRadius: 14, padding: 14,
@@ -167,4 +352,29 @@ const styles = StyleSheet.create({
   historyKg: { color: Colors.light.text, fontWeight: "900", fontSize: 15, marginTop: 2 },
   latestBadge: { backgroundColor: "#DCFCE7", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   latestBadgeText: { color: "#166534", fontSize: 11, fontWeight: "800" },
+
+  // Android modal
+  androidModal: {
+    backgroundColor: "#FFFFFF", borderRadius: 20, padding: 24,
+    width: "80%", borderWidth: 1, borderColor: "#E2E8F0",
+  },
+  androidModalTitle: { fontSize: 17, fontWeight: "900", color: Colors.light.text, marginBottom: 4 },
+  androidModalSub: { fontSize: 13, color: "#64748B", fontWeight: "600", marginBottom: 16 },
+  androidModalInput: {
+    borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 16, fontWeight: "700", color: Colors.light.text,
+    backgroundColor: "#F8FAFC", marginBottom: 16,
+  },
+  androidModalRow: { flexDirection: "row", gap: 10 },
+  androidModalCancel: {
+    flex: 1, paddingVertical: 12, borderRadius: 12,
+    borderWidth: 1, borderColor: "#E2E8F0", alignItems: "center",
+  },
+  androidModalCancelText: { color: "#64748B", fontWeight: "800" },
+  androidModalSave: {
+    flex: 1, paddingVertical: 12, borderRadius: 12,
+    backgroundColor: "#22C55E", alignItems: "center",
+  },
+  androidModalSaveText: { color: "#052e16", fontWeight: "900" },
 });
