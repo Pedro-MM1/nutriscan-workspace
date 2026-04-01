@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
-import { api } from '../../services/api';
+import { api, ConversationTurn } from '../../services/api';
 
 type Message = {
     id: string;
@@ -22,18 +22,27 @@ export default function AiCoachScreen() {
     const sendMessage = async () => {
         if (!inputText.trim()) return;
 
+        const text = inputText.trim();
+        setInputText('');
+
         const userMsg: Message = {
             id: Date.now().toString(),
-            text: inputText,
+            text,
             sender: 'user',
         };
 
+        // Captura o histórico antes de adicionar a nova mensagem.
+        // A mensagem inicial do AI (sender: 'ai') vira role 'model' para o Gemini.
+        const history: ConversationTurn[] = messages.map((m) => ({
+            role: m.sender === 'user' ? 'user' : 'model',
+            text: m.text,
+        }));
+
         setMessages(prev => [...prev, userMsg]);
-        setInputText('');
         setLoading(true);
 
         try {
-            const response = await api.coachAI(userMsg.text, []);
+            const response = await api.coachAI(text, history);
 
             // ✅ garante tipagem segura
             const aiText =
