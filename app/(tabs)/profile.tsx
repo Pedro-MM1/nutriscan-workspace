@@ -1,8 +1,18 @@
+import { useRouter } from "expo-router";
 import React from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Colors } from "../../constants/Colors";
+import { useAuth } from "../../services/auth";
 
 export default function ProfileScreen() {
+    const router = useRouter();
+    const { signOut } = useAuth();
+
+    const handleLogout = async () => {
+        await signOut();
+        router.replace("/(auth)/login");
+    };
+
     return (
         <ScrollView contentContainerStyle={styles.container}>
             <View style={styles.header}>
@@ -32,7 +42,10 @@ export default function ProfileScreen() {
                 <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.settingsItem}>
+            <TouchableOpacity
+                style={styles.settingsItem}
+                onPress={() => router.push("/subscription")}
+            >
                 <View>
                     <Text style={styles.itemTitle}>Plano</Text>
                     <Text style={styles.itemSub}>Basic ou Full</Text>
@@ -42,7 +55,10 @@ export default function ProfileScreen() {
 
             <Text style={styles.sectionTitle}>Preferências</Text>
 
-            <TouchableOpacity style={styles.settingsItem}>
+            <TouchableOpacity
+                style={styles.settingsItem}
+                onPress={() => router.push("/settings/notifications")}
+            >
                 <View>
                     <Text style={styles.itemTitle}>Notificações</Text>
                     <Text style={styles.itemSub}>Lembretes e alertas do app</Text>
@@ -50,7 +66,10 @@ export default function ProfileScreen() {
                 <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.settingsItem}>
+            <TouchableOpacity
+                style={styles.settingsItem}
+                onPress={() => router.push("/settings/privacy")}
+            >
                 <View>
                     <Text style={styles.itemTitle}>Privacidade</Text>
                     <Text style={styles.itemSub}>Dados e segurança</Text>
@@ -58,7 +77,7 @@ export default function ProfileScreen() {
                 <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.logoutButton}>
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
                 <Text style={styles.logoutText}>Sair da conta</Text>
             </TouchableOpacity>
         </ScrollView>

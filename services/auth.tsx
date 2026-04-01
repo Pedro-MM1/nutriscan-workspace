@@ -1,4 +1,4 @@
-import { onAuthStateChanged, User } from "firebase/auth";
+import { onAuthStateChanged, signOut as firebaseSignOut, User } from "firebase/auth";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth } from "../lib/firebase";
 
@@ -11,6 +11,7 @@ interface AuthContextType {
     user: User | null;
     loading: boolean;
     isAuthenticated: boolean;
+    signOut: () => Promise<void>;
     signInAsGuest: () => void; // Dev mode helper
     mockSignIn: (email: string) => void; // Dev mode helper
 }
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType>({
     user: null,
     loading: true,
     isAuthenticated: false,
+    signOut: async () => { },
     signInAsGuest: () => { },
     mockSignIn: () => { },
 });
@@ -42,6 +44,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setLoading(false);
         }
     }, []);
+
+    const signOut = async () => {
+        if (USE_FIREBASE_AUTH) {
+            await firebaseSignOut(auth);
+        } else {
+            setUser(null);
+        }
+    };
 
     const signInAsGuest = () => {
         if (!USE_FIREBASE_AUTH) {
@@ -94,7 +104,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, isAuthenticated: !!user, signInAsGuest, mockSignIn }}>
+        <AuthContext.Provider value={{ user, loading, isAuthenticated: !!user, signOut, signInAsGuest, mockSignIn }}>
             {children}
         </AuthContext.Provider>
     );
