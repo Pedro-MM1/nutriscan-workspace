@@ -1,27 +1,21 @@
-import React, { useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import AddMealModal from "../../components/AddMealModal";
 import { Colors } from "../../constants/Colors";
+import { auth } from "../../lib/firebase";
+import { useDailyMeals } from "../../lib/hooks/useDailyMeals";
+import { useUserDoc } from "../../lib/hooks/useUserDoc";
+import { addMeal } from "../../lib/meals";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snack";
-
-interface Meal {
-  id: string;
-  name: string;
-  type: MealType;
-  kcal: number;
-  proteinG: number;
-  carbsG: number;
-  fatG: number;
-  time: string;
-}
-
-const MEALS: Meal[] = [
-  { id: "1", name: "Ovos mexidos + pão integral", type: "breakfast", kcal: 380, proteinG: 22, carbsG: 34, fatG: 14, time: "07:30" },
-  { id: "2", name: "Iogurte grego com granola",   type: "snack",     kcal: 210, proteinG: 14, carbsG: 26, fatG: 5,  time: "10:00" },
-  { id: "3", name: "Frango grelhado com arroz",   type: "lunch",     kcal: 620, proteinG: 48, carbsG: 58, fatG: 12, time: "12:30" },
-  { id: "4", name: "Whey protein + banana",        type: "snack",     kcal: 290, proteinG: 30, carbsG: 32, fatG: 4,  time: "16:00" },
-  { id: "5", name: "Salmão com batata doce",       type: "dinner",    kcal: 540, proteinG: 42, carbsG: 44, fatG: 16, time: "19:30" },
-];
 
 const MEAL_CONFIG: Record<MealType, { label: string; emoji: string; color: string; bg: string }> = {
   breakfast: { label: "Café da manhã", emoji: "☕️", color: "#D97706", bg: "#FEF3C7" },
@@ -30,28 +24,68 @@ const MEAL_CONFIG: Record<MealType, { label: string; emoji: string; color: strin
   snack:     { label: "Lanche",        emoji: "🍎", color: "#166534", bg: "#DCFCE7" },
 };
 
-const DATES = ["Hoje", "Ontem", "28/03", "27/03", "26/03"];
+function buildDates() {
+  const today = new Date();
+  return Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const label =
+      i === 0 ? "Hoje" :
+      i === 1 ? "Ontem" :
+      `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return { label, date: d };
+  });
+}
+
+function formatTime(createdAt: any): string {
+  if (!createdAt) return "";
+  const d =
+    typeof createdAt?.toDate === "function"
+      ? createdAt.toDate()
+      : createdAt instanceof Date
+      ? createdAt
+      : null;
+  if (!d) return "";
+  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
 
 export default function DiaryScreen() {
-  const [selectedDate, setSelectedDate] = useState("Hoje");
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [addOpen, setAddOpen] = useState(false);
+  const [authUid, setAuthUid] = useState<string | null>(null);
 
-  const totals = MEALS.reduce(
-    (acc, m) => ({
-      kcal: acc.kcal + m.kcal,
-      protein: acc.protein + m.proteinG,
-      carbs: acc.carbs + m.carbsG,
-      fat: acc.fat + m.fatG,
-    }),
-    { kcal: 0, protein: 0, carbs: 0, fat: 0 }
-  );
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (!u) {
+        try {
+          const cred = await signInAnonymously(auth);
+          setAuthUid(cred.user.uid);
+        } catch {
+          setAuthUid(null);
+        }
+        return;
+      }
+      setAuthUid(u.uid);
+    });
+    return () => unsub();
+  }, []);
 
-  const dailyGoal = 2200;
-  const remaining = Math.max(dailyGoal - totals.kcal, 0);
-  const pct = Math.min(Math.round((totals.kcal / dailyGoal) * 100), 100);
+  const { user, data } = useUserDoc();
+  const uid = user?.uid ?? authUid ?? null;
+
+  // Array de datas computado uma vez no mount
+  const DATES = useMemo(() => buildDates(), []);
+  const selectedDate = DATES[selectedIndex].date;
+
+  const { meals, totals, loading } = useDailyMeals(uid, selectedDate);
+
+  const dailyGoal = data?.goals?.kcal ?? 2200;
+  const remaining = Math.max(dailyGoal - totals.calories, 0);
+  const pct = Math.min(Math.round((totals.calories / dailyGoal) * 100), 100);
 
   const grouped = (["breakfast", "lunch", "dinner", "snack"] as MealType[]).map((type) => ({
     type,
-    items: MEALS.filter((m) => m.type === type),
+    items: meals.filter((m) => m.type === type),
   }));
 
   return (
@@ -69,14 +103,14 @@ export default function DiaryScreen() {
         style={{ marginBottom: 16 }}
         contentContainerStyle={{ gap: 8, paddingRight: 8 }}
       >
-        {DATES.map((d) => (
+        {DATES.map((d, i) => (
           <TouchableOpacity
-            key={d}
-            style={[styles.dateChip, selectedDate === d && styles.dateChipActive]}
-            onPress={() => setSelectedDate(d)}
+            key={d.label}
+            style={[styles.dateChip, selectedIndex === i && styles.dateChipActive]}
+            onPress={() => setSelectedIndex(i)}
           >
-            <Text style={[styles.dateChipLabel, selectedDate === d && styles.dateChipLabelActive]}>
-              {d}
+            <Text style={[styles.dateChipLabel, selectedIndex === i && styles.dateChipLabelActive]}>
+              {d.label}
             </Text>
           </TouchableOpacity>
         ))}
@@ -86,7 +120,7 @@ export default function DiaryScreen() {
       <View style={styles.summaryCard}>
         <View style={styles.summaryTop}>
           <View>
-            <Text style={styles.summaryKcal}>{totals.kcal} kcal</Text>
+            <Text style={styles.summaryKcal}>{totals.calories} kcal</Text>
             <Text style={styles.summaryMeta}>
               Meta {dailyGoal} kcal • Restam {remaining} kcal
             </Text>
@@ -96,12 +130,10 @@ export default function DiaryScreen() {
           </View>
         </View>
 
-        {/* Barra de progresso */}
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${pct}%` }]} />
         </View>
 
-        {/* Macros */}
         <View style={styles.macroRow}>
           <MacroChip label="Prot." value={`${totals.protein}g`} color="#2563EB" />
           <MacroChip label="Carb." value={`${totals.carbs}g`}   color="#D97706" />
@@ -109,15 +141,32 @@ export default function DiaryScreen() {
         </View>
       </View>
 
+      {/* LOADING */}
+      {loading && (
+        <ActivityIndicator color="#2563EB" style={{ marginVertical: 24 }} />
+      )}
+
+      {/* EMPTY STATE */}
+      {!loading && meals.length === 0 && (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>🍽️</Text>
+          <Text style={styles.emptyTitle}>Nenhuma refeição registrada</Text>
+          <Text style={styles.emptySub}>
+            {selectedIndex === 0
+              ? "Adicione uma refeição abaixo ou use o Scanner."
+              : "Não há registros para este dia."}
+          </Text>
+        </View>
+      )}
+
       {/* REFEIÇÕES POR TIPO */}
-      {grouped.map(({ type, items }) => {
+      {!loading && grouped.map(({ type, items }) => {
         if (items.length === 0) return null;
         const cfg = MEAL_CONFIG[type];
-        const typeKcal = items.reduce((s, m) => s + m.kcal, 0);
+        const typeKcal = items.reduce((s, m) => s + (m.totals?.calories ?? 0), 0);
 
         return (
           <View key={type} style={{ marginBottom: 6 }}>
-            {/* Cabeçalho do grupo */}
             <View style={styles.groupHeader}>
               <View style={[styles.groupEmoji, { backgroundColor: cfg.bg }]}>
                 <Text style={{ fontSize: 16 }}>{cfg.emoji}</Text>
@@ -126,33 +175,53 @@ export default function DiaryScreen() {
               <Text style={[styles.groupKcal, { color: cfg.color }]}>{typeKcal} kcal</Text>
             </View>
 
-            {/* Itens */}
             <View style={styles.itemsWrap}>
-              {items.map((m) => (
-                <View key={m.id} style={styles.mealItem}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.mealName}>{m.name}</Text>
-                    <Text style={styles.mealMacros}>
-                      P {m.proteinG}g • C {m.carbsG}g • G {m.fatG}g
-                    </Text>
+              {items.map((m) => {
+                const time = formatTime(m.createdAt);
+                return (
+                  <View key={m.id} style={styles.mealItem}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.mealName}>{m.name}</Text>
+                      <Text style={styles.mealMacros}>
+                        P {m.totals?.protein ?? 0}g • C {m.totals?.carbs ?? 0}g • G {m.totals?.fat ?? 0}g
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={styles.mealKcal}>{m.totals?.calories ?? 0} kcal</Text>
+                      {time ? <Text style={styles.mealTime}>{time}</Text> : null}
+                    </View>
                   </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={styles.mealKcal}>{m.kcal} kcal</Text>
-                    <Text style={styles.mealTime}>{m.time}</Text>
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           </View>
         );
       })}
 
       {/* ADICIONAR REFEIÇÃO */}
-      <TouchableOpacity style={styles.addBtn}>
+      <TouchableOpacity
+        style={[styles.addBtn, !uid && styles.addBtnDisabled]}
+        onPress={() => setAddOpen(true)}
+        disabled={!uid}
+      >
         <Text style={styles.addBtnText}>➕ Adicionar refeição</Text>
       </TouchableOpacity>
 
       <View style={{ height: 28 }} />
+
+      <AddMealModal
+        visible={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSubmit={async (meal) => {
+          if (!uid) return;
+          await addMeal(uid, {
+            ...meal,
+            type: meal.type ?? "lunch",
+            dateKey: selectedDate.toISOString().slice(0, 10),
+          });
+          setAddOpen(false);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -209,6 +278,15 @@ const styles = StyleSheet.create({
   macroChipLabel: { fontSize: 11, fontWeight: "800", marginBottom: 2 },
   macroChipValue: { fontSize: 14, fontWeight: "900", color: Colors.light.text },
 
+  emptyState: {
+    alignItems: "center", paddingVertical: 32, paddingHorizontal: 24,
+    backgroundColor: "#FFFFFF", borderRadius: 20, borderWidth: 1,
+    borderColor: "#E2E8F0", marginBottom: 16,
+  },
+  emptyIcon: { fontSize: 36, marginBottom: 10 },
+  emptyTitle: { fontSize: 16, fontWeight: "900", color: Colors.light.text, marginBottom: 6 },
+  emptySub: { fontSize: 13, color: "#64748B", fontWeight: "600", textAlign: "center", lineHeight: 20 },
+
   groupHeader: {
     flexDirection: "row", alignItems: "center", gap: 10,
     marginBottom: 8, marginTop: 4,
@@ -232,5 +310,6 @@ const styles = StyleSheet.create({
     marginTop: 8, backgroundColor: "#22C55E", borderRadius: 18,
     paddingVertical: 16, alignItems: "center",
   },
+  addBtnDisabled: { backgroundColor: "#A7F3D0" },
   addBtnText: { color: "#022C22", fontWeight: "900", fontSize: 15 },
 });
