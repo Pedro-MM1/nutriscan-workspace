@@ -21,14 +21,22 @@ export default function SignupScreen() {
             Alert.alert('Erro', 'Por favor preencha todos os campos');
             return;
         }
+        if (password.length < 6) {
+            Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres');
+            return;
+        }
         setLoading(true);
         try {
             if (USE_FIREBASE_AUTH) {
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 await updateProfile(userCredential.user, { displayName: name });
+                // reload() dispara onAuthStateChanged com o perfil atualizado (incluindo displayName)
+                await userCredential.user.reload();
+                router.replace('/(tabs)');
             } else {
                 console.log('Dev Signup: Skipping Firebase');
                 mockSignIn(email);
+                router.replace('/(tabs)');
             }
         } catch (error: any) {
             Alert.alert('Cadastro Falhou', error.message);

@@ -6,7 +6,10 @@ import { useAuth } from "../../services/auth";
 
 export default function ProfileScreen() {
     const router = useRouter();
-    const { signOut } = useAuth();
+    const { signOut, user } = useAuth();
+
+    const displayName = user?.displayName || user?.email?.split("@")[0] || "Usuário";
+    const avatarLetter = displayName.charAt(0).toUpperCase();
 
     const handleLogout = async () => {
         await signOut();
@@ -17,11 +20,11 @@ export default function ProfileScreen() {
         <ScrollView contentContainerStyle={styles.container}>
             <View style={styles.header}>
                 <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>P</Text>
+                    <Text style={styles.avatarText}>{avatarLetter}</Text>
                 </View>
 
-                <Text style={styles.name}>Pedro</Text>
-                <Text style={styles.email}>Seu perfil e preferências</Text>
+                <Text style={styles.name}>{displayName}</Text>
+                <Text style={styles.email}>{user?.email ?? "Seu perfil e preferências"}</Text>
             </View>
 
             <Text style={styles.sectionTitle}>Conta</Text>

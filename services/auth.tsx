@@ -5,7 +5,7 @@ import { auth } from "../lib/firebase";
 
 // DEVELOPMENT MODE FLAG
 // Set to false to bypass Firebase Auth and use mock users
-export const USE_FIREBASE_AUTH = false;
+export const USE_FIREBASE_AUTH = true;
 
 interface AuthContextType {
     user: User | null;

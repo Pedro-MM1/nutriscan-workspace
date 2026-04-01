@@ -24,9 +24,11 @@ export default function LoginScreen() {
         try {
             if (USE_FIREBASE_AUTH) {
                 await signInWithEmailAndPassword(auth, email, password);
+                router.replace('/(tabs)');
             } else {
                 console.log('Dev Login: Skipping Firebase');
                 mockSignIn(email);
+                router.replace('/(tabs)');
             }
         } catch (error: any) {
             Alert.alert('Login Falhou', error.message);
