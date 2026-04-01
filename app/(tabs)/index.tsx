@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import AddMealModal from "../../components/AddMealModal";
 import { auth } from "../../lib/firebase";
@@ -37,6 +38,7 @@ const clamp01 = (v: number) => clamp(v, 0, 1);
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { top } = useSafeAreaInsets();
   const [authUid, setAuthUid] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -65,7 +67,7 @@ export default function HomeScreen() {
   const firstName =
     user?.displayName?.split(" ")[0] ??
     user?.email?.split("@")[0] ??
-    "você";
+    "Atleta";
   const avatarLetter = (user?.displayName ?? user?.email ?? "U")
     .charAt(0)
     .toUpperCase();
@@ -168,7 +170,7 @@ export default function HomeScreen() {
       showsVerticalScrollIndicator={false}
     >
       {/* ── HEADER ─────────────────────────────────────────────── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { marginTop: top + 8 }]}>
         <View style={styles.headerLeft}>
           <Text style={styles.greeting}>
             {getGreeting()}, {firstName} 👋
@@ -500,7 +502,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 8,
     marginBottom: 20,
   },
   headerLeft: { flex: 1, paddingRight: 12 },
