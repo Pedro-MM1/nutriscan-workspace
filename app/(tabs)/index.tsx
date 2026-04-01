@@ -166,11 +166,11 @@ export default function HomeScreen() {
 
   return (
     <ScrollView
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container, { paddingTop: top + 8 }]}
       showsVerticalScrollIndicator={false}
     >
       {/* ── HEADER ─────────────────────────────────────────────── */}
-      <View style={[styles.header, { marginTop: top + 8 }]}>
+      <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.greeting}>
             {getGreeting()}, {firstName} 👋
