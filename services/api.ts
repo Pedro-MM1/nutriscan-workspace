@@ -118,8 +118,9 @@ export const api = {
         });
 
         if (!res.ok) {
-            const err = await res.text();
-            throw new Error(`Gemini error ${res.status}: ${err}`);
+            const errorBody = await res.text();
+            console.error('Gemini error:', res.status, errorBody);
+            throw new Error(`Gemini error ${res.status}: ${errorBody}`);
         }
 
         const data = await res.json();
