@@ -100,6 +100,46 @@ export default function TabsLayout() {
           ),
         }}
       />
+
+      <Tabs.Screen
+        name="diet"
+        options={{
+          title: "Dieta",
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="restaurant-outline" color={color} focused={focused} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="diary"
+        options={{
+          title: "Diário",
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="book-outline" color={color} focused={focused} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="ai-coach"
+        options={{
+          title: "AI Coach",
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="chatbubble-ellipses-outline" color={color} focused={focused} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="workouts"
+        options={{
+          title: "Treinos",
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="barbell-outline" color={color} focused={focused} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
