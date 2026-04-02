@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -12,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors } from "../../constants/Colors";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../services/auth";
@@ -28,6 +30,7 @@ const GOALS: Goal[] = ["perda_de_peso", "ganho_de_massa", "manutencao"];
 
 export default function ProfileScreen() {
     const router = useRouter();
+    const { top } = useSafeAreaInsets();
     const { signOut, user } = useAuth();
 
     const [goal, setGoal] = useState<Goal | null>(null);
@@ -43,9 +46,8 @@ export default function ProfileScreen() {
         if (!user) return;
         const ref = doc(db, "users", user.uid, "profile", "data");
         getDoc(ref).then((snap) => {
-            if (snap.exists()) {
-                const data = snap.data();
-                if (data.goal) setGoal(data.goal as Goal);
+            if (snap.exists() && snap.data().goal) {
+                setGoal(snap.data().goal as Goal);
             }
         });
     }, [user]);
@@ -81,77 +83,101 @@ export default function ProfileScreen() {
     };
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
-            <View style={styles.header}>
-                <View style={styles.avatar}>
+        <ScrollView
+            contentContainerStyle={styles.container}
+            showsVerticalScrollIndicator={false}
+        >
+            {/* ── HEADER GRADIENTE ── */}
+            <LinearGradient
+                colors={["#0F172A", "#1E3A5F", "#1E1B4B"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.headerGradient, { paddingTop: top + 24 }]}
+            >
+                <LinearGradient
+                    colors={["#2563EB", "#7C3AED"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.avatar}
+                >
                     <Text style={styles.avatarText}>{avatarLetter}</Text>
-                </View>
+                </LinearGradient>
+
                 <Text style={styles.name}>{displayName}</Text>
                 <Text style={styles.email}>{user?.email ?? "Seu perfil e preferências"}</Text>
+
                 {goal && (
                     <View style={styles.goalBadge}>
                         <Text style={styles.goalBadgeText}>{GOAL_LABELS[goal]}</Text>
                     </View>
                 )}
+
+                <TouchableOpacity style={styles.editBtn} onPress={openModal}>
+                    <Text style={styles.editBtnText}>Editar perfil</Text>
+                </TouchableOpacity>
+            </LinearGradient>
+
+            {/* ── SEÇÕES ── */}
+            <View style={styles.sections}>
+                <Text style={styles.sectionTitle}>Conta</Text>
+
+                <TouchableOpacity style={styles.settingsItem} onPress={openModal}>
+                    <View>
+                        <Text style={styles.itemTitle}>Editar perfil</Text>
+                        <Text style={styles.itemSub}>Nome, objetivo e dados pessoais</Text>
+                    </View>
+                    <Text style={styles.chevron}>›</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.settingsItem}>
+                    <View>
+                        <Text style={styles.itemTitle}>Metas diárias</Text>
+                        <Text style={styles.itemSub}>Calorias e macros</Text>
+                    </View>
+                    <Text style={styles.chevron}>›</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={styles.settingsItem}
+                    onPress={() => router.push("/subscription")}
+                >
+                    <View>
+                        <Text style={styles.itemTitle}>Plano</Text>
+                        <Text style={styles.itemSub}>Basic ou Full</Text>
+                    </View>
+                    <Text style={styles.chevron}>›</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.sectionTitle}>Preferências</Text>
+
+                <TouchableOpacity
+                    style={styles.settingsItem}
+                    onPress={() => router.push("/settings/notifications")}
+                >
+                    <View>
+                        <Text style={styles.itemTitle}>Notificações</Text>
+                        <Text style={styles.itemSub}>Lembretes e alertas do app</Text>
+                    </View>
+                    <Text style={styles.chevron}>›</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={styles.settingsItem}
+                    onPress={() => router.push("/settings/privacy")}
+                >
+                    <View>
+                        <Text style={styles.itemTitle}>Privacidade</Text>
+                        <Text style={styles.itemSub}>Dados e segurança</Text>
+                    </View>
+                    <Text style={styles.chevron}>›</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                    <Text style={styles.logoutText}>Sair da conta</Text>
+                </TouchableOpacity>
             </View>
 
-            <Text style={styles.sectionTitle}>Conta</Text>
-
-            <TouchableOpacity style={styles.settingsItem} onPress={openModal}>
-                <View>
-                    <Text style={styles.itemTitle}>Editar perfil</Text>
-                    <Text style={styles.itemSub}>Nome, objetivo e dados pessoais</Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.settingsItem}>
-                <View>
-                    <Text style={styles.itemTitle}>Metas diárias</Text>
-                    <Text style={styles.itemSub}>Calorias e macros</Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-                style={styles.settingsItem}
-                onPress={() => router.push("/subscription")}
-            >
-                <View>
-                    <Text style={styles.itemTitle}>Plano</Text>
-                    <Text style={styles.itemSub}>Basic ou Full</Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.sectionTitle}>Preferências</Text>
-
-            <TouchableOpacity
-                style={styles.settingsItem}
-                onPress={() => router.push("/settings/notifications")}
-            >
-                <View>
-                    <Text style={styles.itemTitle}>Notificações</Text>
-                    <Text style={styles.itemSub}>Lembretes e alertas do app</Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-                style={styles.settingsItem}
-                onPress={() => router.push("/settings/privacy")}
-            >
-                <View>
-                    <Text style={styles.itemTitle}>Privacidade</Text>
-                    <Text style={styles.itemSub}>Dados e segurança</Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                <Text style={styles.logoutText}>Sair da conta</Text>
-            </TouchableOpacity>
-
+            {/* ── MODAL ── */}
             <Modal
                 visible={modalVisible}
                 animationType="slide"
@@ -176,19 +202,11 @@ export default function ProfileScreen() {
                         {GOALS.map((g) => (
                             <TouchableOpacity
                                 key={g}
-                                style={[
-                                    styles.goalOption,
-                                    editGoal === g && styles.goalOptionSelected,
-                                ]}
+                                style={[styles.goalOption, editGoal === g && styles.goalOptionSelected]}
                                 onPress={() => setEditGoal(g)}
                             >
                                 <View style={[styles.radio, editGoal === g && styles.radioSelected]} />
-                                <Text
-                                    style={[
-                                        styles.goalOptionText,
-                                        editGoal === g && styles.goalOptionTextSelected,
-                                    ]}
-                                >
+                                <Text style={[styles.goalOptionText, editGoal === g && styles.goalOptionTextSelected]}>
                                     {GOAL_LABELS[g]}
                                 </Text>
                             </TouchableOpacity>
@@ -223,71 +241,86 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
     container: {
-        padding: 18,
-        paddingBottom: 32,
-        backgroundColor: Colors.light.background,
+        backgroundColor: "#F8FAFC",
+        paddingBottom: 40,
     },
 
-    header: {
+    // Header gradiente
+    headerGradient: {
         alignItems: "center",
-        marginTop: 10,
-        marginBottom: 24,
+        paddingHorizontal: 18,
+        paddingBottom: 32,
     },
-
     avatar: {
-        width: 74,
-        height: 74,
+        width: 80,
+        height: 80,
         borderRadius: 999,
-        backgroundColor: "#DBEAFE",
         alignItems: "center",
         justifyContent: "center",
-        marginBottom: 12,
+        marginBottom: 14,
+        shadowColor: "#7C3AED",
+        shadowOpacity: 0.5,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 8,
     },
-
     avatarText: {
-        fontSize: 28,
+        fontSize: 32,
         fontWeight: "900",
-        color: "#1D4ED8",
+        color: "#FFFFFF",
     },
-
     name: {
-        fontSize: 24,
+        fontSize: 26,
         fontWeight: "900",
-        color: Colors.light.text,
+        color: "#FFFFFF",
         letterSpacing: -0.5,
+        marginBottom: 4,
     },
-
     email: {
-        marginTop: 6,
         fontSize: 13,
-        color: "#64748B",
+        color: "rgba(255,255,255,0.55)",
         fontWeight: "600",
+        marginBottom: 10,
     },
-
     goalBadge: {
-        marginTop: 8,
-        backgroundColor: "#ECFDF5",
+        backgroundColor: "rgba(255,255,255,0.12)",
         borderRadius: 99,
-        paddingHorizontal: 12,
-        paddingVertical: 4,
+        paddingHorizontal: 14,
+        paddingVertical: 5,
         borderWidth: 1,
-        borderColor: "#6EE7B7",
+        borderColor: "rgba(255,255,255,0.2)",
+        marginBottom: 16,
     },
-
     goalBadgeText: {
-        color: "#065F46",
+        color: "#FFFFFF",
         fontSize: 12,
         fontWeight: "700",
     },
+    editBtn: {
+        backgroundColor: "rgba(255,255,255,0.15)",
+        borderRadius: 12,
+        paddingHorizontal: 20,
+        paddingVertical: 9,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.25)",
+    },
+    editBtnText: {
+        color: "#FFFFFF",
+        fontWeight: "800",
+        fontSize: 13,
+    },
 
+    // Seções
+    sections: {
+        padding: 18,
+    },
     sectionTitle: {
-        color: Colors.light.text,
+        color: "#0F172A",
         fontSize: 16,
         fontWeight: "900",
         marginBottom: 12,
         marginTop: 10,
     },
-
     settingsItem: {
         flexDirection: "row",
         alignItems: "center",
@@ -304,28 +337,24 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         elevation: 2,
     },
-
     itemTitle: {
-        color: Colors.light.text,
+        color: "#0F172A",
         fontSize: 15,
         fontWeight: "900",
     },
-
     itemSub: {
         color: "#64748B",
         fontSize: 12,
         fontWeight: "600",
         marginTop: 4,
     },
-
     chevron: {
         fontSize: 22,
         color: "#94A3B8",
         fontWeight: "700",
     },
-
     logoutButton: {
-        marginTop: 18,
+        marginTop: 8,
         backgroundColor: "#FEF2F2",
         borderWidth: 1,
         borderColor: "#FECACA",
@@ -333,7 +362,6 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         alignItems: "center",
     },
-
     logoutText: {
         color: "#DC2626",
         fontWeight: "900",
@@ -346,7 +374,6 @@ const styles = StyleSheet.create({
         backgroundColor: "rgba(0,0,0,0.5)",
         justifyContent: "flex-end",
     },
-
     modalSheet: {
         backgroundColor: "#1F2937",
         borderTopLeftRadius: 24,
@@ -354,14 +381,12 @@ const styles = StyleSheet.create({
         padding: 24,
         paddingBottom: 36,
     },
-
     modalTitle: {
         fontSize: 18,
         fontWeight: "900",
         color: "#FFFFFF",
         marginBottom: 20,
     },
-
     fieldLabel: {
         fontSize: 13,
         fontWeight: "700",
@@ -370,7 +395,6 @@ const styles = StyleSheet.create({
         textTransform: "uppercase",
         letterSpacing: 0.5,
     },
-
     textInput: {
         backgroundColor: "#111827",
         borderRadius: 12,
@@ -382,7 +406,6 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "#374151",
     },
-
     goalOption: {
         flexDirection: "row",
         alignItems: "center",
@@ -394,12 +417,10 @@ const styles = StyleSheet.create({
         marginBottom: 8,
         backgroundColor: "#111827",
     },
-
     goalOptionSelected: {
         borderColor: Colors.light.primary,
         backgroundColor: "#064E3B",
     },
-
     radio: {
         width: 18,
         height: 18,
@@ -408,29 +429,24 @@ const styles = StyleSheet.create({
         borderColor: "#6B7280",
         marginRight: 12,
     },
-
     radioSelected: {
         borderColor: Colors.light.primary,
         backgroundColor: Colors.light.primary,
     },
-
     goalOptionText: {
         color: "#9CA3AF",
         fontSize: 15,
         fontWeight: "600",
     },
-
     goalOptionTextSelected: {
         color: "#FFFFFF",
         fontWeight: "700",
     },
-
     modalActions: {
         flexDirection: "row",
         gap: 12,
         marginTop: 8,
     },
-
     cancelButton: {
         flex: 1,
         paddingVertical: 14,
@@ -439,13 +455,11 @@ const styles = StyleSheet.create({
         borderColor: "#374151",
         alignItems: "center",
     },
-
     cancelText: {
         color: "#9CA3AF",
         fontWeight: "700",
         fontSize: 15,
     },
-
     saveButton: {
         flex: 1,
         paddingVertical: 14,
@@ -453,7 +467,6 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.light.primary,
         alignItems: "center",
     },
-
     saveText: {
         color: "#FFFFFF",
         fontWeight: "900",

@@ -1,3 +1,4 @@
+import { LinearGradient } from "expo-linear-gradient";
 import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -13,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors } from "../../constants/Colors";
 import { auth } from "../../lib/firebase";
 import { useWeightLog, WeightEntry } from "../../lib/hooks/useWeightLog";
@@ -37,10 +39,10 @@ function fullDate(entry: WeightEntry): string {
 }
 
 export default function ProgressScreen() {
+  const { top } = useSafeAreaInsets();
   const [period, setPeriod] = useState("7 dias");
   const [authUid, setAuthUid] = useState<string | null>(null);
 
-  // Android weight input modal state
   const [androidModal, setAndroidModal] = useState(false);
   const [androidInput, setAndroidInput] = useState("");
 
@@ -67,7 +69,6 @@ export default function ProgressScreen() {
 
   const weightGoal = data?.goals?.weightGoalKg ?? 78;
 
-  // Filtra pelo período selecionado (entries chegam em desc, reverse p/ asc)
   const filteredAsc = useMemo(() => {
     const days = PERIOD_DAYS[period];
     const cutoff = new Date();
@@ -81,14 +82,10 @@ export default function ProgressScreen() {
           : new Date(e.dateKey);
         return d >= cutoff;
       })
-      .reverse(); // asc para o gráfico
+      .reverse();
   }, [entries, period]);
 
-  // Até 10 pontos no gráfico
-  const chartData = useMemo(
-    () => filteredAsc.slice(-10),
-    [filteredAsc]
-  );
+  const chartData = useMemo(() => filteredAsc.slice(-10), [filteredAsc]);
 
   const current = entries[0]?.kg ?? null;
   const oldest = filteredAsc[0]?.kg ?? current;
@@ -127,117 +124,136 @@ export default function ProgressScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* HEADER */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Progresso</Text>
-        <Text style={styles.subtitle}>Evolução do seu peso e metas</Text>
-      </View>
-
-      {/* CARDS DE RESUMO */}
-      <View style={styles.summaryRow}>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Peso atual</Text>
-          <Text style={styles.summaryValue}>
-            {current != null ? `${current} kg` : "—"}
-          </Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Variação</Text>
-          <Text style={[styles.summaryValue, diff != null && { color: diffPositive ? "#EF4444" : "#22C55E" }]}>
-            {diff != null ? `${diffPositive ? "+" : ""}${diff} kg` : "—"}
-          </Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Meta</Text>
-          <Text style={styles.summaryValue}>{weightGoal} kg</Text>
-        </View>
-      </View>
-
-      {/* PERÍODO */}
-      <View style={styles.periodRow}>
-        {PERIODS.map((p) => (
-          <TouchableOpacity
-            key={p}
-            style={[styles.periodBtn, period === p && styles.periodBtnActive]}
-            onPress={() => setPeriod(p)}
-          >
-            <Text style={[styles.periodLabel, period === p && styles.periodLabelActive]}>{p}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* GRÁFICO */}
-      <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>Peso ({period})</Text>
-
-        {loading && <ActivityIndicator color="#2563EB" style={{ marginVertical: 24 }} />}
-
-        {!loading && chartData.length === 0 && (
-          <View style={styles.chartEmpty}>
-            <Text style={styles.chartEmptyText}>Nenhum registro para este período</Text>
-          </View>
-        )}
-
-        {!loading && chartData.length > 0 && (
-          <View style={styles.chartArea}>
-            {chartData.map((d, i) => {
-              const heightPct = ((d.kg - minKg) / range) * 60 + 20;
-              return (
-                <View key={d.id ?? i} style={styles.barWrap}>
-                  <Text style={styles.barValue}>{d.kg}</Text>
-                  <View style={[styles.bar, { height: heightPct }]} />
-                  <Text style={styles.barDate}>{dateLabel(d).split("/")[0]}</Text>
-                </View>
-              );
-            })}
-          </View>
-        )}
-      </View>
-
-      {/* REGISTRO DE PESO */}
-      <Text style={styles.sectionTitle}>Registrar peso</Text>
-      <TouchableOpacity
-        style={[styles.addWeightBtn, !uid && styles.addWeightBtnDisabled]}
-        onPress={handleAddWeight}
-        disabled={!uid}
+    <ScrollView
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* ── HERO GRADIENTE ── */}
+      <LinearGradient
+        colors={["#0F172A", "#1E3A5F", "#1E1B4B"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.heroGradient, { paddingTop: top + 20 }]}
       >
-        <Text style={styles.addWeightIcon}>⚖️</Text>
-        <View>
-          <Text style={styles.addWeightTitle}>Adicionar medição</Text>
-          <Text style={styles.addWeightSub}>Registre seu peso de hoje</Text>
-        </View>
-        <Text style={styles.chevron}>›</Text>
-      </TouchableOpacity>
+        <Text style={styles.heroTitle}>Progresso</Text>
+        <Text style={styles.heroSubtitle}>Evolução do seu peso e metas</Text>
 
-      {/* HISTÓRICO */}
-      <Text style={styles.sectionTitle}>Histórico recente</Text>
-
-      {loading && <ActivityIndicator color="#2563EB" style={{ marginBottom: 16 }} />}
-
-      {!loading && entries.length === 0 && (
-        <View style={styles.historyEmpty}>
-          <Text style={styles.historyEmptyText}>
-            Nenhuma medição registrada ainda.{"\n"}Adicione seu peso acima para começar.
-          </Text>
-        </View>
-      )}
-
-      {!loading && entries.map((e, i) => (
-        <View key={e.id} style={styles.historyItem}>
-          <View>
-            <Text style={styles.historyDate}>{fullDate(e)}</Text>
-            <Text style={styles.historyKg}>{e.kg} kg</Text>
+        {/* Cards de resumo sobre o gradiente */}
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>Peso atual</Text>
+            <Text style={[styles.summaryValue, { color: "#60A5FA" }]}>
+              {current != null ? `${current} kg` : "—"}
+            </Text>
           </View>
-          {i === 0 && (
-            <View style={styles.latestBadge}>
-              <Text style={styles.latestBadgeText}>Mais recente</Text>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>Variação</Text>
+            <Text style={[styles.summaryValue, {
+              color: diff == null ? "#94A3B8" : diffPositive ? "#F87171" : "#34D399"
+            }]}>
+              {diff != null ? `${diffPositive ? "+" : ""}${diff} kg` : "—"}
+            </Text>
+          </View>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>Meta</Text>
+            <Text style={[styles.summaryValue, { color: "#A78BFA" }]}>
+              {weightGoal} kg
+            </Text>
+          </View>
+        </View>
+      </LinearGradient>
+
+      {/* ── CONTEÚDO BRANCO ── */}
+      <View style={styles.content}>
+
+        {/* PERÍODO */}
+        <View style={styles.periodRow}>
+          {PERIODS.map((p) => (
+            <TouchableOpacity
+              key={p}
+              style={[styles.periodBtn, period === p && styles.periodBtnActive]}
+              onPress={() => setPeriod(p)}
+            >
+              <Text style={[styles.periodLabel, period === p && styles.periodLabelActive]}>{p}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* GRÁFICO */}
+        <LinearGradient
+          colors={["#0F172A", "#1E293B"]}
+          style={styles.chartCard}
+        >
+          <Text style={styles.chartTitle}>Peso ({period})</Text>
+
+          {loading && <ActivityIndicator color="#60A5FA" style={{ marginVertical: 24 }} />}
+
+          {!loading && chartData.length === 0 && (
+            <View style={styles.chartEmpty}>
+              <Text style={styles.chartEmptyText}>Nenhum registro para este período</Text>
             </View>
           )}
-        </View>
-      ))}
 
-      <View style={{ height: 28 }} />
+          {!loading && chartData.length > 0 && (
+            <View style={styles.chartArea}>
+              {chartData.map((d, i) => {
+                const heightPct = ((d.kg - minKg) / range) * 60 + 20;
+                return (
+                  <View key={d.id ?? i} style={styles.barWrap}>
+                    <Text style={styles.barValue}>{d.kg}</Text>
+                    <View style={[styles.bar, { height: heightPct }]} />
+                    <Text style={styles.barDate}>{dateLabel(d).split("/")[0]}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </LinearGradient>
+
+        {/* REGISTRO DE PESO */}
+        <Text style={styles.sectionTitle}>Registrar peso</Text>
+        <TouchableOpacity
+          style={[styles.addWeightBtn, !uid && styles.addWeightBtnDisabled]}
+          onPress={handleAddWeight}
+          disabled={!uid}
+        >
+          <Text style={styles.addWeightIcon}>⚖️</Text>
+          <View>
+            <Text style={styles.addWeightTitle}>Adicionar medição</Text>
+            <Text style={styles.addWeightSub}>Registre seu peso de hoje</Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+
+        {/* HISTÓRICO */}
+        <Text style={styles.sectionTitle}>Histórico recente</Text>
+
+        {loading && <ActivityIndicator color="#2563EB" style={{ marginBottom: 16 }} />}
+
+        {!loading && entries.length === 0 && (
+          <View style={styles.historyEmpty}>
+            <Text style={styles.historyEmptyText}>
+              Nenhuma medição registrada ainda.{"\n"}Adicione seu peso acima para começar.
+            </Text>
+          </View>
+        )}
+
+        {!loading && entries.map((e, i) => (
+          <View key={e.id} style={styles.historyItem}>
+            <View>
+              <Text style={styles.historyDate}>{fullDate(e)}</Text>
+              <Text style={styles.historyKg}>{e.kg} kg</Text>
+            </View>
+            {i === 0 && (
+              <View style={styles.latestBadge}>
+                <Text style={styles.latestBadgeText}>Mais recente</Text>
+              </View>
+            )}
+          </View>
+        ))}
+
+        <View style={{ height: 28 }} />
+      </View>
 
       {/* MODAL ANDROID */}
       <Modal visible={androidModal} transparent animationType="fade">
@@ -282,20 +298,51 @@ export default function ProgressScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 18, paddingBottom: 32, backgroundColor: "#F8FAFC" },
-  header: { marginTop: 6, marginBottom: 20 },
-  title: { fontSize: 28, fontWeight: "900", color: Colors.light.text, letterSpacing: -0.8 },
-  subtitle: { color: "#64748B", fontSize: 14, marginTop: 6, fontWeight: "600" },
+  container: { backgroundColor: "#F8FAFC", paddingBottom: 32 },
 
-  summaryRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
-  summaryCard: {
-    flex: 1, backgroundColor: "#FFFFFF", borderRadius: 18, padding: 14,
-    borderWidth: 1, borderColor: "#E2E8F0", alignItems: "center",
-    shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 }, elevation: 2,
+  // Hero
+  heroGradient: {
+    paddingHorizontal: 18,
+    paddingBottom: 28,
   },
-  summaryLabel: { color: "#64748B", fontSize: 11, fontWeight: "700", marginBottom: 6 },
-  summaryValue: { color: Colors.light.text, fontSize: 16, fontWeight: "900" },
+  heroTitle: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    letterSpacing: -0.8,
+    marginBottom: 4,
+  },
+  heroSubtitle: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 20,
+  },
+  summaryRow: { flexDirection: "row", gap: 10 },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+  },
+  summaryLabel: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 11,
+    fontWeight: "700",
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  summaryValue: {
+    fontSize: 17,
+    fontWeight: "900",
+  },
+
+  // Conteúdo
+  content: { padding: 18 },
 
   periodRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
   periodBtn: {
@@ -307,19 +354,23 @@ const styles = StyleSheet.create({
   periodLabelActive: { color: "#FFFFFF" },
 
   chartCard: {
-    backgroundColor: "#FFFFFF", borderRadius: 20, padding: 16,
-    borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 16,
-    shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 }, elevation: 3,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
-  chartTitle: { color: Colors.light.text, fontWeight: "900", fontSize: 14, marginBottom: 16 },
+  chartTitle: { color: "#FFFFFF", fontWeight: "900", fontSize: 14, marginBottom: 16 },
   chartArea: { flexDirection: "row", alignItems: "flex-end", gap: 6, height: 110 },
   chartEmpty: { height: 80, justifyContent: "center", alignItems: "center" },
-  chartEmptyText: { color: "#94A3B8", fontSize: 13, fontWeight: "600" },
+  chartEmptyText: { color: "#4B5563", fontSize: 13, fontWeight: "600" },
   barWrap: { flex: 1, alignItems: "center", gap: 4 },
-  barValue: { fontSize: 9, color: "#64748B", fontWeight: "700" },
-  bar: { width: "100%", backgroundColor: "#2563EB", borderRadius: 6 },
-  barDate: { fontSize: 10, color: "#94A3B8", fontWeight: "700" },
+  barValue: { fontSize: 9, color: "#94A3B8", fontWeight: "700" },
+  bar: { width: "100%", backgroundColor: "#60A5FA", borderRadius: 6 },
+  barDate: { fontSize: 10, color: "#64748B", fontWeight: "700" },
 
   sectionTitle: {
     color: Colors.light.text, fontSize: 17, fontWeight: "900",
@@ -330,6 +381,8 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 12,
     backgroundColor: "#FFFFFF", borderRadius: 18, padding: 16,
     borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 16,
+    shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
   addWeightBtnDisabled: { opacity: 0.5 },
   addWeightIcon: { fontSize: 22 },
@@ -347,13 +400,14 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     backgroundColor: "#FFFFFF", borderRadius: 14, padding: 14,
     borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 8,
+    shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 }, elevation: 1,
   },
   historyDate: { color: "#64748B", fontSize: 12, fontWeight: "700" },
   historyKg: { color: Colors.light.text, fontWeight: "900", fontSize: 15, marginTop: 2 },
   latestBadge: { backgroundColor: "#DCFCE7", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   latestBadgeText: { color: "#166534", fontSize: 11, fontWeight: "800" },
 
-  // Android modal
   androidModal: {
     backgroundColor: "#FFFFFF", borderRadius: 20, padding: 24,
     width: "80%", borderWidth: 1, borderColor: "#E2E8F0",
