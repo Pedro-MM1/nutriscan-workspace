@@ -102,31 +102,43 @@ export const api = {
             },
         ];
 
-        const res = await fetch(GEMINI_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                systemInstruction: {
-                    parts: [{ text: SYSTEM_PROMPT }],
-                },
-                contents,
-                generationConfig: {
-                    temperature: 0.7,
-                    maxOutputTokens: 1024,
-                },
-            }),
+        const body = JSON.stringify({
+            systemInstruction: {
+                parts: [{ text: SYSTEM_PROMPT }],
+            },
+            contents,
+            generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 1024,
+            },
         });
 
-        if (!res.ok) {
-            const errorBody = await res.text();
-            console.error('Gemini error:', res.status, errorBody);
-            throw new Error(`Gemini error ${res.status}: ${errorBody}`);
+        const MAX_RETRIES = 2;
+        let res: Response | null = null;
+
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            res = await fetch(GEMINI_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body,
+            });
+
+            if (res.status === 429 && attempt < MAX_RETRIES) {
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                continue;
+            }
+
+            break;
         }
 
-        const data = await res.json();
+        if (!res!.ok) {
+            throw new Error(`Gemini error ${res!.status}`);
+        }
+
+        const data = await res!.json();
         const text =
             data.candidates?.[0]?.content?.parts?.[0]?.text ??
-            "Não consegui responder agora. Tente novamente.";
+            "Servidor ocupado, aguarde um momento e tente novamente. 🔄";
 
         return { text };
     },
